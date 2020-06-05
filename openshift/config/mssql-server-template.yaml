@@ -1,0 +1,117 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: mssql-server
+objects:
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: mssql-server
+    name: mssql-server
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: mssql-server
+      deploymentconfig: mssql-server
+    strategy:
+      activeDeadlineSeconds: 21600
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: mssql-server
+          deploymentconfig: mssql-server
+      spec:
+        containers:
+        - env:
+          - name: ACCEPT_EULA
+            value: ${ACCEPT_EULA}
+          - name: SA_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: MSSQL_SA_PASSWORD
+                name: mssql-secret
+          image: null
+          imagePullPolicy: Always
+          name: mssql-server
+          ports:
+          - containerPort: 1433
+            protocol: TCP
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/opt/mssql/data
+            name: mssql-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: mssql-data
+          persistentVolumeClaim:
+            claimName: mssql-data
+    test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - mssql-server
+        from:
+          kind: ImageStreamTag
+          name: mssql-server:latest
+      type: ImageChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: mssql-server
+    name: mssql-server
+  spec:
+    ports:
+    - name: 1433-tcp
+      port: 1433
+      protocol: TCP
+      targetPort: 1433
+    selector:
+      app: mssql-server
+      deploymentconfig: mssql-server
+    type: ClusterIP
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    labels:
+      app: mssql-server
+    name: mssql-data
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+- apiVersion: v1
+  data:
+    MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+  kind: Secret
+  metadata:
+    name: mssql-secret
+  type: Opaque
+parameters:
+- description: Password for msql sa user. It is required for connecting to the db.
+    If left empty, it will be generated.
+  displayName: MSSQL_SA_PASSWORD
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: MSSQL_SA_PASSWORD
+- description: Accept MS EULA
+  displayName: ACCEPT_EULA
+  name: ACCEPT_EULA
+  value: "Y"

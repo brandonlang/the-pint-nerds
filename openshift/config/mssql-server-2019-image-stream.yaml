@@ -1,0 +1,17 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: mssql-server
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: 'mcr.microsoft.com/mssql/server:2019-latest'
+      generation: 1
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: Source
